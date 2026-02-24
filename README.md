@@ -1,1 +1,1 @@
-# fitness-ai
+# agentic-fitness-mvp
