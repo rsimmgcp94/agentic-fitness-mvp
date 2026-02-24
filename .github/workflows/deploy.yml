@@ -1,0 +1,34 @@
+name: Build and Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: sunlit-ace-442319-m7
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Build and Push container
+        run: |
+          gcloud builds submit --tag gcr.io/sunlit-ace-442319-m7/agentic-fitness-mvp:$GITHUB_SHA
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy agentic-fitness-api \
+            --image=gcr.io/sunlit-ace-442319-m7/agentic-fitness-mvp:$GITHUB_SHA \
+            --region=us-central1 \
+            --platform=managed \
+            --allow-unauthenticated
