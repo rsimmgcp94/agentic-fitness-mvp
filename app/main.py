@@ -12,7 +12,7 @@ class PlanResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"ok": True, "service": "agentic-fitness-mvp", "version": "0.1.0"}
+    return {"ok": True, "service": "agentic-fitness-mvp", "version": "0.1.1"}
 
 @app.post("/submit-assessment", response_model=PlanResponse)
 async def submit_assessment(
