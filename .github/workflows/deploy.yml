@@ -30,4 +30,5 @@ jobs:
             --image=gcr.io/sunlit-ace-442319-m7/agentic-fitness-mvp:$GITHUB_SHA \
             --region=us-central1 \
             --platform=managed \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --service-account=gha-deployer@sunlit-ace-442319-m7.iam.gserviceaccount.com
