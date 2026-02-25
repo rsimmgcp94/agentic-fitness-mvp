@@ -22,7 +22,7 @@ jobs:
 
       - name: Build and Push container
         run: |
-          gcloud builds submit --tag gcr.io/sunlit-ace-442319-m7/agentic-fitness-mvp:$GITHUB_SHA --suppress-logs
+          gcloud builds submit --tag gcr.io/sunlit-ace-442319-m7/agentic-fitness-mvp:$GITHUB_SHA --gcs-log-dir=gs://sunlit-ace-442319-m7_cloudbuild/logs
 
       - name: Deploy to Cloud Run
         run: |
