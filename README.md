@@ -1,4 +1,3 @@
-```markdown
 # agentic-fitness-mvp
 
 A portfolio-focused **Agentic AI Fitness MVP** backend built with **FastAPI** and deployed on **Google Cloud Run**.  
