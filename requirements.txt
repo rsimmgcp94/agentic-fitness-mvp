@@ -3,3 +3,4 @@ uvicorn[standard]==0.41.0
 python-multipart==0.0.22
 pydantic==2.12.5
 google-cloud-storage
+google-cloud-tasks

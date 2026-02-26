@@ -7,6 +7,7 @@ import os
 import json
 import logging
 from app.gcs import upload_file_to_gcs
+from google.cloud import tasks_v2
 
 #Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +17,13 @@ logger = logging.getLogger("agentic-fitness-mvp")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 if not GCS_BUCKET_NAME:
     logger.warning("GCS_BUCKET_NAME environment variable is not set.")
+
+# Cloud Tasks Configuration
+PROJECT_ID = os.getenv("GCP_PROJECT")
+QUEUE_REGION = os.getenv("CLOUD_TASKS_LOCATION", "us-central1")
+QUEUE_ID = os.getenv("CLOUD_TASKS_QUEUE", "agentic-fitness-queue")
+SERVICE_URL = os.getenv("SERVICE_URL") # The public URL of this Cloud Run service
+
     
 app = FastAPI(title="Agentic Fitness MVP")
 
@@ -25,6 +33,10 @@ class PlanResponse(BaseModel):
     front_gs_path: str
     side_gs_path: str
     back_gs_path: str
+    metadata_gs_path: str
+
+class WorkerPayload(BaseModel):
+    plan_id: str
     metadata_gs_path: str
 
 @app.get("/")
@@ -91,6 +103,32 @@ back_photo: UploadFile = File(...),
         metadata_gs_path = upload_file_to_gcs(metadata_local, metadata_blob)
         logger.info("Uploaded metadata to GCS: %s", metadata_gs_path)
 
+        # Enqueue Cloud Task for Async Processing
+        if PROJECT_ID and QUEUE_REGION and QUEUE_ID and SERVICE_URL:
+            try:
+                client = tasks_v2.CloudTasksClient()
+                parent = client.queue_path(PROJECT_ID, QUEUE_REGION, QUEUE_ID)
+                
+                task_payload = {
+                    "plan_id": uid,
+                    "metadata_gs_path": metadata_gs_path
+                }
+                
+                task = {
+                    "http_request": {
+                        "http_method": tasks_v2.HttpMethod.POST,
+                        "url": f"{SERVICE_URL}/worker/process-assessment",
+                        "headers": {"Content-Type": "application/json"},
+                        "body": json.dumps(task_payload).encode(),
+                    }
+                }
+                response = client.create_task(request={"parent": parent, "task": task})
+                logger.info("Enqueued task: %s", response.name)
+            except Exception as e:
+                logger.error(f"Failed to enqueue task: {e}")
+        else:
+            logger.warning("Skipping Cloud Task creation: Missing configuration.")
+
         #Cleanup local temp files
         try:
             os.remove(front_tmp)
@@ -113,3 +151,10 @@ back_photo: UploadFile = File(...),
     except Exception as e:
         logger.exception("Failed during upload flow")
         raise HTTPException(status_code=500, detail=f"Upload Failed: {str(e)}")
+
+@app.post("/worker/process-assessment")
+async def process_assessment(payload: WorkerPayload):
+    """Worker endpoint called by Cloud Tasks."""
+    logger.info(f"Worker received task for plan_id: {payload.plan_id}")
+    # TODO: Implement image analysis logic here (MediaPipe/LLM)
+    return {"status": "processing_started", "plan_id": payload.plan_id}
