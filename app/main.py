@@ -79,7 +79,7 @@ back_photo: UploadFile = File(...),
         metadata = {
             "goals": goals,
             "uid": uid,
-            "fron_blob": front_blob,
+            "front_blob": front_blob,
             "side_blob": side_blob,
             "back_blob": back_blob,
         }
