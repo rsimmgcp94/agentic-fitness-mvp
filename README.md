@@ -1,7 +1,7 @@
 # agentic-fitness-mvp
 
 A portfolio-focused **Agentic AI Fitness MVP** backend built with **FastAPI** and deployed on **Google Cloud Run**.  
-This POC currently supports assessment submissions (goals + two photos), persists uploads to **Google Cloud Storage (GCS)**, and returns structured paths to uploaded artifacts.
+This POC currently supports assessment submissions (goals + three photos), persists uploads to **Google Cloud Storage (GCS)**, and returns structured paths to uploaded artifacts.
 
 **Cloud Run URL:** https://agentic-fitness-mvp-432298206863.us-central1.run.app
 
@@ -38,6 +38,7 @@ Accepts a multipart form submission:
 - `goals` (form field)
 - `front_photo` (file)
 - `side_photo` (file)
+- `back_photo` (file)
 
 **Behavior**
 1. Generates a UUID for the submission.
@@ -57,6 +58,8 @@ Accepts a multipart form submission:
 "front_gs_path": "gs://<bucket>/<uuid>/front.jpg",
 
 "side_gs_path": "gs://<bucket>/<uuid>/side.jpg",
+
+"back_gs_path": "gs://<bucket>/<uuid>/side.jpg",
 
 "metadata_gs_path": "gs://<bucket>/<uuid>/metadata.json"
 
@@ -84,7 +87,9 @@ curl -X POST "https://agentic-fitness-mvp-432298206863.us-central1.run.app/submi
 
 -F "front_photo=@./front.jpg" \
 
--F "side_photo=@./side.jpg"
+-F "side_photo=@./side.jpg" \
+
+-F "back_photo=@./back.jpg" \
 
 ```
 
@@ -96,6 +101,7 @@ Uploads are written to:
 
 - `gs://<bucket>/<uuid>/front.jpg`
 - `gs://<bucket>/<uuid>/side.jpg`
+- `gs://<bucket>/<uuid>/back.jpg`
 - `gs://<bucket>/<uuid>/metadata.json`
 
 ---
@@ -128,7 +134,7 @@ Dockerfile
 
 Required:
 
-- `GCS_BUCKET=<bucket-name>`
+- `GCS_BUCKET_NAME=<bucket-name>`
 
 ### GCS Helper
 
@@ -167,7 +173,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ```
 
-> Ensure `GCS_BUCKET` is set and your local environment has GCP credentials that can upload to the bucket.
+> Ensure `GCS_BUCKET_NAME` is set and your local environment has GCP credentials that can upload to the bucket.
 
 ---
 
