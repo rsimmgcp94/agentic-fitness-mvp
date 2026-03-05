@@ -6,7 +6,8 @@ import shutil
 import os
 import json
 import logging
-from app.gcs import upload_file_to_gcs
+from app.gcs import upload_file_to_gcs, download_file_from_gcs
+from app.analysis import analyze_pose
 from google.cloud import tasks_v2
 
 #Configure logging
@@ -156,5 +157,55 @@ back_photo: UploadFile = File(...),
 async def process_assessment(payload: WorkerPayload):
     """Worker endpoint called by Cloud Tasks."""
     logger.info(f"Worker received task for plan_id: {payload.plan_id}")
-    # TODO: Implement image analysis logic here (MediaPipe/LLM)
-    return {"status": "processing_started", "plan_id": payload.plan_id}
+    
+    uid = payload.plan_id
+    tmp_dir = f"/tmp/{uid}_processing"
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    try:
+        # 1. Parse metadata blob name from gs:// path
+        # Format: gs://bucket_name/blob_name
+        if not payload.metadata_gs_path.startswith(f"gs://{GCS_BUCKET_NAME}/"):
+            raise ValueError(f"Invalid GCS path: {payload.metadata_gs_path}")
+            
+        metadata_blob_name = payload.metadata_gs_path.replace(f"gs://{GCS_BUCKET_NAME}/", "")
+        local_metadata_path = os.path.join(tmp_dir, "metadata.json")
+        
+        # 2. Download and read metadata
+        download_file_from_gcs(metadata_blob_name, local_metadata_path)
+        with open(local_metadata_path, "r") as f:
+            metadata = json.load(f)
+
+        # 3. Process each image
+        analysis_results = {}
+        for angle in ["front", "side", "back"]:
+            blob_key = f"{angle}_blob"
+            if blob_key in metadata:
+                blob_name = metadata[blob_key]
+                local_img_path = os.path.join(tmp_dir, f"{angle}.jpg")
+                
+                logger.info(f"Downloading {angle} image: {blob_name}")
+                download_file_from_gcs(blob_name, local_img_path)
+                
+                logger.info(f"Analyzing {angle} image...")
+                analysis_results[angle] = analyze_pose(local_img_path)
+
+        # 4. Save analysis results
+        analysis_local_path = os.path.join(tmp_dir, "analysis.json")
+        with open(analysis_local_path, "w") as f:
+            json.dump(analysis_results, f)
+            
+        # 5. Upload analysis to GCS
+        analysis_blob_name = f"{uid}/analysis.json"
+        analysis_gs_path = upload_file_to_gcs(analysis_local_path, analysis_blob_name)
+        logger.info(f"Analysis complete. Uploaded to: {analysis_gs_path}")
+
+        return {"status": "success", "analysis_gs_path": analysis_gs_path}
+
+    except Exception as e:
+        logger.exception(f"Worker failed for plan_id {uid}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Cleanup
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
