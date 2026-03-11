@@ -1,16 +1,16 @@
-import cv2
-import mediapipe as mp
-import numpy as np
 from typing import Any
 
-# Initialize MediaPipe Pose
-from mediapipe.python.solutions import pose as mp_pose
 
 def analyze_pose(image_path: str) -> dict:
     """
     Runs MediaPipe Pose detection on a local image file.
     Returns a dictionary containing detection status and landmarks.
     """
+    # Lazy import to prevent startup crashes/timeouts
+    import cv2
+    import mediapipe as mp
+    from mediapipe.python.solutions import pose as mp_pose
+
     with mp_pose.Pose(
         static_image_mode=True,
         model_complexity=2,
