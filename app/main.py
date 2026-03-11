@@ -4,6 +4,7 @@ from uuid import uuid4
 from typing import Optional
 import shutil
 import os
+from functools import lru_cache
 import json
 import logging
 from app.gcs import upload_file_to_gcs, download_file_from_gcs
@@ -22,6 +23,11 @@ QUEUE_ID = os.getenv("CLOUD_TASKS_QUEUE", "agentic-fitness-queue")
 SERVICE_URL = os.getenv("SERVICE_URL") # The public URL of this Cloud Run service
 
     
+@lru_cache(maxsize=1)
+def get_tasks_client():
+    """Cached factory for the Cloud Tasks client."""
+    return tasks_v2.CloudTasksClient()
+
 app = FastAPI(title="Agentic Fitness MVP")
 
 class PlanResponse(BaseModel):
@@ -52,15 +58,15 @@ back_photo: UploadFile = File(...),
     Save the photos to a temp local path, uploads them to GCS,
     writes a metadata JSON to GCS and returns gs:// paths.
     """
-    uid=str(uuid4())
-    tmp_dir = "/tmp/uploads" 
+    uid = str(uuid4())
+    tmp_dir = f"/tmp/uploads/{uid}"
     os.makedirs(tmp_dir, exist_ok=True)
 
     try:
         #Save the uploaded files to /tmp
-        front_tmp = os.path.join(tmp_dir, f"{uid}_front.jpg")
-        side_tmp = os.path.join(tmp_dir, f"{uid}_side.jpg")
-        back_tmp = os.path.join(tmp_dir, f"{uid}_back.jpg")
+        front_tmp = os.path.join(tmp_dir, "front.jpg")
+        side_tmp = os.path.join(tmp_dir, "side.jpg")
+        back_tmp = os.path.join(tmp_dir, "back.jpg")
 
         with open(front_tmp, "wb") as f:
             shutil.copyfileobj(front_photo.file, f)
@@ -69,7 +75,7 @@ back_photo: UploadFile = File(...),
         with open(back_tmp, "wb") as f:
             shutil.copyfileobj(back_photo.file, f)
 
-        logger.info("Saved uploaded files to rmp: %s, %s, %s", front_tmp, side_tmp, back_tmp)
+        logger.info("Saved uploaded files to tmp: %s, %s, %s", front_tmp, side_tmp, back_tmp)
 
         #Upload to GCS
         front_blob = f"{uid}/front.jpg"
@@ -89,7 +95,7 @@ back_photo: UploadFile = File(...),
             "side_blob": side_blob,
             "back_blob": back_blob,
         }
-        metadata_local = os.path.join(tmp_dir, f"{uid}_metadata.json")
+        metadata_local = os.path.join(tmp_dir, "metadata.json")
         with open(metadata_local, "w") as mf:
             json.dump(metadata, mf)
 
@@ -101,6 +107,7 @@ back_photo: UploadFile = File(...),
         if PROJECT_ID and QUEUE_REGION and QUEUE_ID and SERVICE_URL:
             try:
                 client = tasks_v2.CloudTasksClient()
+                client = get_tasks_client()
                 parent = client.queue_path(PROJECT_ID, QUEUE_REGION, QUEUE_ID)
                 
                 task_payload = {
@@ -130,7 +137,7 @@ back_photo: UploadFile = File(...),
             os.remove(back_tmp)
             os.remove(metadata_local)
         except Exception:
-            logger.debug("Failed to clean up com tmp files; continuing anyway.")
+            logger.debug("Failed to clean up local tmp files; continuing anyway.")
 
         return {
             "plan_id": uid,
@@ -138,13 +145,16 @@ back_photo: UploadFile = File(...),
             "side_gs_path": side_gs_path,
             "back_gs_path": back_gs_path,
             "metadata_gs_path": metadata_gs_path,
-            "message": "Files uploaded successfully. Plan generation not implemented in this MVP."
-        
+            "message": "Files uploaded successfully. Analysis task enqueued."
         }
     
     except Exception as e:
         logger.exception("Failed during upload flow")
         raise HTTPException(status_code=500, detail=f"Upload Failed: {str(e)}")
+    finally:
+        # Cleanup local temp directory
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
 
 @app.post("/worker/process-assessment")
 async def process_assessment(payload: WorkerPayload):
