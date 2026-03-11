@@ -4,6 +4,10 @@ python-multipart==0.0.22
 pydantic==2.12.5
 protobuf==3.20.3
 google-cloud-storage==2.9.0
+google-api-core[grpc]==2.11.1
+google-auth==2.22.0
+googleapis-common-protos==1.60.0
+grpcio==1.56.2
 google-cloud-tasks==2.13.0
 mediapipe==0.10.11
 opencv-python-headless==4.10.0.84

@@ -15,10 +15,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("agentic-fitness-mvp")
 
 # Read required env var
-GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
-if not GCS_BUCKET_NAME:
-    logger.warning("GCS_BUCKET_NAME environment variable is not set.")
-
 # Cloud Tasks Configuration
 PROJECT_ID = os.getenv("GCP_PROJECT")
 QUEUE_REGION = os.getenv("CLOUD_TASKS_LOCATION", "us-central1")
@@ -56,9 +52,6 @@ back_photo: UploadFile = File(...),
     Save the photos to a temp local path, uploads them to GCS,
     writes a metadata JSON to GCS and returns gs:// paths.
     """
-    if not GCS_BUCKET_NAME:
-        raise HTTPException(status_code=500, detail="GCS_BUCKET_NAME is not configured on the server.")
-    
     uid=str(uuid4())
     tmp_dir = "/tmp/uploads" 
     os.makedirs(tmp_dir, exist_ok=True)
@@ -156,6 +149,7 @@ back_photo: UploadFile = File(...),
 @app.post("/worker/process-assessment")
 async def process_assessment(payload: WorkerPayload):
     """Worker endpoint called by Cloud Tasks."""
+    GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
     logger.info(f"Worker received task for plan_id: {payload.plan_id}")
     
     uid = payload.plan_id
