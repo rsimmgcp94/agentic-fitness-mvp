@@ -203,12 +203,6 @@ Deployed on **Cloud Run** and configured to **auto redeploy on push to `main`** 
 
 ## Roadmap (Planned, Not Implemented Yet)
 
-- Async processing via **Cloud Tasks** or **Pub/Sub**
-- Worker endpoint (e.g. `/work-order/{id}`)
-- Image analysis (MediaPipe / MoveNet) with `analysis.json` persisted to GCS
-- LLM integration
-- RAG pipeline + Vector DB
-- Postgres / Cloud SQL
 - Structured audit logging + observability
 - Signed URLs for secure frontend access
 - IAM least-privilege refinement
