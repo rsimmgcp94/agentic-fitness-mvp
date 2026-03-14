@@ -9,6 +9,7 @@ import json
 import logging
 from app.gcs import upload_file_to_gcs, download_file_from_gcs
 from app.analysis import analyze_pose
+from app.llm import generate_workout_plan
 from google.cloud import tasks_v2
 
 # Configure logging
@@ -224,7 +225,23 @@ async def process_assessment(payload: WorkerPayload):
         analysis_gs_path = upload_file_to_gcs(analysis_local_path, analysis_blob_name)
         logger.info(f"Analysis complete. Uploaded to: {analysis_gs_path}")
 
-        return {"status": "success", "analysis_gs_path": analysis_gs_path}
+        # 6. Generate Workout Plan with Gemini
+        logger.info("Generating workout plan with LLM...")
+        plan_markdown = generate_workout_plan(metadata.get("goals", ""), analysis_results)
+        
+        plan_local_path = os.path.join(tmp_dir, "plan.md")
+        with open(plan_local_path, "w") as f:
+            f.write(plan_markdown)
+        
+        plan_blob_name = f"{uid}/plan.md"
+        plan_gs_path = upload_file_to_gcs(plan_local_path, plan_blob_name)
+        logger.info(f"Workout plan generated. Uploaded to: {plan_gs_path}")
+
+        return {
+            "status": "success", 
+            "analysis_gs_path": analysis_gs_path,
+            "plan_gs_path": plan_gs_path
+        }
 
     except Exception as e:
         logger.exception(f"Worker failed for plan_id {uid}")

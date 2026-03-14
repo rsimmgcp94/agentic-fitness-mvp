@@ -7,6 +7,9 @@ pydantic==2.6.1
 google-cloud-storage==2.9.0
 google-cloud-tasks==2.13.0
 
+# LLM Integration
+google-generativeai==0.8.3
+
 # MediaPipe and its dependencies
 mediapipe==0.10.14
 opencv-python-headless==4.10.0.84
