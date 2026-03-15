@@ -10,6 +10,23 @@ def generate_workout_plan(goals: str, pose_analysis: dict) -> str:
     Calls Gemini to generate a customized workout plan based on the user's goals
     and the raw 3D landmark data extracted from their photos.
     """
+    # 1. Filter out failed detections to save LLM tokens and prevent confusion
+    valid_poses = {
+        angle: data 
+        for angle, data in pose_analysis.items() 
+        if data.get("detected") is True
+    }
+    
+    # 2. Short-circuit if ANY expected pose is missing or invalid (bypass LLM completely)
+    expected_poses = {"front", "side", "back"}
+    if not expected_poses.issubset(valid_poses.keys()):
+        logger.warning(f"Missing valid poses. Expected {expected_poses}, got {set(valid_poses.keys())}. Skipping LLM call.")
+        return (
+            "## ⚠️ Posture Analysis Incomplete\n\n"
+            "We were unable to detect a clear human body in one or more of the uploaded photos. "
+            "Please ensure your front, side, and back photos are well-lit, uncorrupted, and clearly show your full body from head to toe, then try again.\n"
+        )
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         logger.error("GEMINI_API_KEY is missing.")
@@ -27,7 +44,7 @@ def generate_workout_plan(goals: str, pose_analysis: dict) -> str:
     {goals}
     
     Pose Landmarks (33 3D points normalized [0.0, 1.0] extracted via Computer Vision): 
-    {json.dumps(pose_analysis, indent=2)}
+    {json.dumps(valid_poses, indent=2)}
     
     Analysis Workflow (Chain of Thought):
     1. Postural Screening: Evaluate the 3D landmarks for common deviations (e.g., Anterior Pelvic Tilt, Kyphosis, Valgus stress, lateral shifts).
@@ -56,8 +73,8 @@ def generate_workout_plan(goals: str, pose_analysis: dict) -> str:
         
         # Dynamically fetch available models that support text generation
         available_models = [
-            m.name for m in genai.list_models() 
-            if 'generateContent' in m.supported_generation_methods
+            m.name for m in genai.list_models()  # type: ignore
+            if m.supported_generation_methods and 'generateContent' in m.supported_generation_methods
         ]
         logger.info(f"Available models for this API key: {available_models}")
         
