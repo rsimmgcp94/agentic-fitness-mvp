@@ -7,7 +7,16 @@ This POC currently supports assessment submissions (goals + three photos), persi
 
 > Status: **Milestone A complete** (scaffold + upload persistence). No async processing, agent logic, or image analysis yet.
 
----
+### `POST /worker/process-assessment`
+Worker endpoint called asynchronously by Cloud Tasks.
+
+**Behavior**
+1. Downloads `metadata.json` and images from GCS.
+2. Runs **MediaPipe Pose Detection** on the images to extract 33 3D body landmarks.
+3. Uploads the raw landmark data as `analysis.json` to GCS.
+4. Feeds the landmark data and user goals into the **Gemini** LLM.
+5. Generates a personalized workout plan and uploads it as `plan.md` to GCS.
+
 
 ## Tech Stack
 
@@ -100,11 +109,9 @@ curl -X POST "https://agentic-fitness-mvp-432298206863.us-central1.run.app/submi
 Uploads are written to:
 
 - `gs://<bucket>/<uuid>/front.jpg`
-- `gs://<bucket>/<uuid>/side.jpg`
-- `gs://<bucket>/<uuid>/back.jpg`
-- `gs://<bucket>/<uuid>/metadata.json`
+- `gs://<bucket>/<uuid>/analysis.json` (MediaPipe 3D landmarks)
+- `gs://<bucket>/<uuid>/plan.md` (Generated workout plan)
 
----
 
 ## Project Structure (Conceptual)
 
@@ -134,7 +141,11 @@ Dockerfile
 
 Required:
 
-- `GCS_BUCKET_NAME=<bucket-name>`
+- `GCP_PROJECT=<project-id>`
+- `CLOUD_TASKS_LOCATION=us-central1`
+- `CLOUD_TASKS_QUEUE=agentic-fitness-queue`
+- `SERVICE_URL=https://agentic-fitness-mvp-432298206863.us-central1.run.app`
+- `GEMINI_API_KEY=<your-gemini-api-key>`
 
 ### GCS Helper
 
@@ -203,23 +214,20 @@ Deployed on **Cloud Run** and configured to **auto redeploy on push to `main`** 
 
 ## Roadmap (Planned, Not Implemented Yet)
 
-- Structured audit logging + observability
-- Signed URLs for secure frontend access
-- IAM least-privilege refinement
+- **Retrieval API**: `GET /assessment/{plan_id}` to fetch the generated plan.
+- **State Management**: Firestore integration to track job status (Pending, Processing, Completed, Failed).
+- **Frontend UI**: Streamlit or lightweight web app for user-friendly submission and viewing.
+- **RAG Pipeline**: Vector DB for referencing specific exercises or physical therapy knowledge.
 
----
 
 ## Design Intent
 
 This project is being built as a portfolio-quality **Agentic AI system** demonstrating:
 
-- Cloud-native architecture (Cloud Run + GCS)
-- Production-style async processing (next milestone)
-- Tool-based agent orchestration (future)
-- Secure handling of user-uploaded data
-- Infrastructure maturity (Docker, CI/CD, IAM)
+- Production-style async processing (Cloud Tasks)
+- Multi-agent / Multimodal orchestration (MediaPipe CV -> Gemini LLM)
 
 Long-term direction:
 
-**User Input → Tool Calls (Image Analysis + RAG) → LLM Agent → Structured Plan → Logged + Auditable Output**
+**User Input → Computer Vision (Pose Detection) → LLM Agent → Structured Plan → GCS Storage**
 ```
