@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
-from uuid import uuid4
+from uuid import uuid4, UUID
 from typing import Optional
 import shutil
 import os
@@ -39,7 +39,7 @@ class PlanResponse(BaseModel):
     metadata_gs_path: str
 
 class WorkerPayload(BaseModel):
-    plan_id: str
+    plan_id: UUID
     metadata_gs_path: str
 
 @app.get("/")
@@ -162,7 +162,7 @@ async def process_assessment(payload: WorkerPayload):
     GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
     logger.info(f"Worker received task for plan_id: {payload.plan_id}")
     
-    uid = payload.plan_id
+    uid = os.path.basename(str(payload.plan_id))
     tmp_dir = f"/tmp/{uid}_processing"
     os.makedirs(tmp_dir, exist_ok=True)
 
