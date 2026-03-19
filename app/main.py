@@ -168,7 +168,9 @@ async def submit_assessment(
 
     except Exception as e:
         logger.exception("Failed during upload flow")
-        raise HTTPException(status_code=500, detail=f"Upload Failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Upload Failed: An internal error occurred."
+        )
     finally:
         # Cleanup local temp directory
         if os.path.exists(tmp_dir):
@@ -227,25 +229,29 @@ async def process_assessment(payload: WorkerPayload):
 
         # 6. Generate Workout Plan with Gemini
         logger.info("Generating workout plan with LLM...")
-        plan_markdown = generate_workout_plan(metadata.get("goals", ""), analysis_results)
-        
+        plan_markdown = generate_workout_plan(
+            metadata.get("goals", ""), analysis_results
+        )
+
         plan_local_path = os.path.join(tmp_dir, "plan.md")
         with open(plan_local_path, "w") as f:
             f.write(plan_markdown)
-        
+
         plan_blob_name = f"{uid}/plan.md"
         plan_gs_path = upload_file_to_gcs(plan_local_path, plan_blob_name)
         logger.info(f"Workout plan generated. Uploaded to: {plan_gs_path}")
 
         return {
-            "status": "success", 
+            "status": "success",
             "analysis_gs_path": analysis_gs_path,
-            "plan_gs_path": plan_gs_path
+            "plan_gs_path": plan_gs_path,
         }
 
     except Exception as e:
         logger.exception(f"Worker failed for plan_id {uid}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail="An internal error occurred during processing."
+        )
     finally:
         # Cleanup
         if os.path.exists(tmp_dir):
