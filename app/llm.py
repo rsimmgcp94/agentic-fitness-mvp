@@ -2,8 +2,23 @@ import google.generativeai as genai
 import os
 import json
 import logging
+from functools import lru_cache
+from typing import List
 
 logger = logging.getLogger(__name__)
+
+@lru_cache(maxsize=1)
+def get_available_models() -> List[str]:
+    """
+    Dynamically fetch available models that support text generation.
+    Cached to avoid repeated expensive API calls.
+    """
+    logger.info("Fetching available models from Gemini API...")
+    available_models = [
+        m.name for m in genai.list_models()  # type: ignore
+        if m.supported_generation_methods and 'generateContent' in m.supported_generation_methods
+    ]
+    return available_models
 
 def generate_workout_plan(goals: str, pose_analysis: dict) -> str:
     """
@@ -71,11 +86,8 @@ def generate_workout_plan(goals: str, pose_analysis: dict) -> str:
     except Exception as e:
         logger.warning(f"Primary model failed ({e}). Discovering available models...")
         
-        # Dynamically fetch available models that support text generation
-        available_models = [
-            m.name for m in genai.list_models()  # type: ignore
-            if m.supported_generation_methods and 'generateContent' in m.supported_generation_methods
-        ]
+        # Dynamically fetch available models (cached)
+        available_models = get_available_models()
         logger.info(f"Available models for this API key: {available_models}")
         
         if not available_models:
