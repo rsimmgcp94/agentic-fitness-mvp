@@ -18,7 +18,7 @@ def test_submit_assessment_valid_files(monkeypatch):
 
     response = client.post(
         "/submit-assessment",
-        data={"goals": "test goals"},
+        data={"goals": "test goals", "height": "5'10\"", "weight": "180 lbs"},
         files={
             "front_photo": ("front.jpg", b"fake data", "image/jpeg"),
             "side_photo": ("side.png", b"fake data", "image/png"),
@@ -33,7 +33,7 @@ def test_submit_assessment_valid_files(monkeypatch):
 def test_submit_assessment_invalid_file(monkeypatch):
     response = client.post(
         "/submit-assessment",
-        data={"goals": "test goals"},
+        data={"goals": "test goals", "height": "5'10\"", "weight": "180 lbs"},
         files={
             "front_photo": ("front.jpg", b"fake data", "image/jpeg"),
             "side_photo": ("side.png", b"fake data", "image/png"),

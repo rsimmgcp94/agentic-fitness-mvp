@@ -55,6 +55,8 @@ async def root():
 @app.post("/submit-assessment", response_model=PlanResponse)
 async def submit_assessment(
     goals: str = Form(...),
+    height: str = Form(...),
+    weight: str = Form(...),
     front_photo: UploadFile = File(...),
     side_photo: UploadFile = File(...),
     back_photo: UploadFile = File(...),
@@ -111,6 +113,8 @@ async def submit_assessment(
         # Write metadata JSON to GCS
         metadata = {
             "goals": goals,
+            "height": height,
+            "weight": weight,
             "uid": uid,
             "front_blob": front_blob,
             "side_blob": side_blob,
@@ -227,7 +231,12 @@ async def process_assessment(payload: WorkerPayload):
 
         # 6. Generate Workout Plan with Gemini
         logger.info("Generating workout plan with LLM...")
-        plan_markdown = generate_workout_plan(metadata.get("goals", ""), analysis_results)
+        plan_markdown = generate_workout_plan(
+            goals=metadata.get("goals", ""),
+            height=metadata.get("height", ""),
+            weight=metadata.get("weight", ""),
+            pose_analysis=analysis_results
+        )
         
         plan_local_path = os.path.join(tmp_dir, "plan.md")
         with open(plan_local_path, "w") as f:
