@@ -11,6 +11,7 @@ from app.gcs import upload_file_to_gcs, download_file_from_gcs, read_text_from_g
 from app.analysis import analyze_pose
 from app.llm import generate_workout_plan
 from google.cloud import tasks_v2
+from app.db import create_assessment, update_assessment_status, get_assessment_doc
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -130,6 +131,15 @@ async def submit_assessment(
         metadata_gs_path = upload_file_to_gcs(metadata_local, metadata_blob)
         logger.info("Uploaded metadata to GCS: %s", metadata_gs_path)
 
+        # Save to Firestore
+        metadata_for_db = {
+            "goals": goals,
+            "age": age,
+            "height": height,
+            "weight": weight,
+        }
+        create_assessment(uid, metadata_for_db)
+
         # Enqueue Cloud Task for Async Processing
         if PROJECT_ID and QUEUE_REGION and QUEUE_ID and SERVICE_URL:
             try:
@@ -189,6 +199,8 @@ async def process_assessment(payload: WorkerPayload):
     uid = payload.plan_id
     tmp_dir = f"/tmp/{uid}_processing"
     os.makedirs(tmp_dir, exist_ok=True)
+
+    update_assessment_status(uid, "PROCESSING")
 
     try:
         # 1. Parse metadata blob name from gs:// path
@@ -261,6 +273,8 @@ async def process_assessment(payload: WorkerPayload):
         plan_gs_path = upload_file_to_gcs(plan_local_path, plan_blob_name)
         logger.info(f"Workout plan generated. Uploaded to: {plan_gs_path}")
 
+        update_assessment_status(uid, "COMPLETED", plan_gs_path=plan_gs_path, analysis_gs_path=analysis_gs_path)
+
         return {
             "status": "success",
             "analysis_gs_path": analysis_gs_path,
@@ -269,6 +283,7 @@ async def process_assessment(payload: WorkerPayload):
 
     except Exception as e:
         logger.exception(f"Worker failed for plan_id {uid}")
+        update_assessment_status(uid, "FAILED", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         # Cleanup
@@ -281,21 +296,21 @@ async def get_assessment(plan_id: str):
     """
     Checks the status of the assessment and returns the generated plan if it's ready.
     """
-    plan_blob_name = f"{plan_id}/plan.md"
-    metadata_blob_name = f"{plan_id}/metadata.json"
-    
     try:
-        # Fast path: Check if the plan is already generated
-        plan_content = read_text_from_gcs(plan_blob_name)
-        if plan_content is not None:
-            return {"plan_id": plan_id, "status": "completed", "plan": plan_content}
-        
-        # Check if the submission actually exists
-        metadata_content = read_text_from_gcs(metadata_blob_name)
-        if metadata_content is None:
+        doc = get_assessment_doc(plan_id)
+        if not doc:
             raise HTTPException(status_code=404, detail="Assessment not found.")
-            
-        return {"plan_id": plan_id, "status": "processing"}
+        
+        status = doc.get("status") or "unknown"
+        
+        if status == "COMPLETED":
+            plan_blob_name = f"{plan_id}/plan.md"
+            plan_content = read_text_from_gcs(plan_blob_name)
+            return {"plan_id": plan_id, "status": "completed", "plan": plan_content}
+        elif status == "FAILED":
+            return {"plan_id": plan_id, "status": "failed", "error": doc.get("error", "Unknown error")}
+        else:
+            return {"plan_id": plan_id, "status": status.lower()}
         
     except HTTPException:
         raise
