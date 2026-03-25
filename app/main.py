@@ -205,19 +205,32 @@ async def process_assessment(payload: WorkerPayload):
         with open(local_metadata_path, "r") as f:
             metadata = json.load(f)
 
-        # 3. Process each image
-        analysis_results = {}
-        for angle in ["front", "side", "back"]:
+        # 3. Process each image concurrently
+        import asyncio
+
+        async def process_angle(angle):
             blob_key = f"{angle}_blob"
             if blob_key in metadata:
                 blob_name = metadata[blob_key]
                 local_img_path = os.path.join(tmp_dir, f"{angle}.jpg")
 
                 logger.info(f"Downloading {angle} image: {blob_name}")
-                download_file_from_gcs(blob_name, local_img_path)
+                await asyncio.to_thread(
+                    download_file_from_gcs, blob_name, local_img_path
+                )
 
                 logger.info(f"Analyzing {angle} image...")
-                analysis_results[angle] = analyze_pose(local_img_path)
+                result = await asyncio.to_thread(analyze_pose, local_img_path)
+                return angle, result
+            return angle, None
+
+        tasks = [process_angle(angle) for angle in ["front", "side", "back"]]
+        results = await asyncio.gather(*tasks)
+
+        analysis_results = {}
+        for angle, res in results:
+            if res is not None:
+                analysis_results[angle] = res
 
         # 4. Save analysis results
         analysis_local_path = os.path.join(tmp_dir, "analysis.json")
@@ -235,21 +248,21 @@ async def process_assessment(payload: WorkerPayload):
             goals=metadata.get("goals", ""),
             height=metadata.get("height", ""),
             weight=metadata.get("weight", ""),
-            pose_analysis=analysis_results
+            pose_analysis=analysis_results,
         )
-        
+
         plan_local_path = os.path.join(tmp_dir, "plan.md")
         with open(plan_local_path, "w") as f:
             f.write(plan_markdown)
-        
+
         plan_blob_name = f"{uid}/plan.md"
         plan_gs_path = upload_file_to_gcs(plan_local_path, plan_blob_name)
         logger.info(f"Workout plan generated. Uploaded to: {plan_gs_path}")
 
         return {
-            "status": "success", 
+            "status": "success",
             "analysis_gs_path": analysis_gs_path,
-            "plan_gs_path": plan_gs_path
+            "plan_gs_path": plan_gs_path,
         }
 
     except Exception as e:
