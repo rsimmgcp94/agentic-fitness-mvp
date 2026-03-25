@@ -55,6 +55,7 @@ async def root():
 @app.post("/submit-assessment", response_model=PlanResponse)
 async def submit_assessment(
     goals: str = Form(...),
+    age: str = Form(...),
     height: str = Form(...),
     weight: str = Form(...),
     front_photo: UploadFile = File(...),
@@ -113,6 +114,7 @@ async def submit_assessment(
         # Write metadata JSON to GCS
         metadata = {
             "goals": goals,
+            "age": age,
             "height": height,
             "weight": weight,
             "uid": uid,
@@ -245,6 +247,7 @@ async def process_assessment(payload: WorkerPayload):
         logger.info("Generating workout plan with LLM...")
         plan_markdown = generate_workout_plan(
             goals=metadata.get("goals", ""),
+            age=metadata.get("age", ""),
             height=metadata.get("height", ""),
             weight=metadata.get("weight", ""),
             pose_analysis=analysis_results,

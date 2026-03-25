@@ -20,7 +20,7 @@ def get_available_models() -> List[str]:
     ]
     return available_models
 
-def generate_workout_plan(goals: str, height: str, weight: str, pose_analysis: dict) -> str:
+def generate_workout_plan(goals: str, age: str, height: str, weight: str, pose_analysis: dict) -> str:
     """
     Calls Gemini to generate a customized workout plan based on the user's goals
     and the raw 3D landmark data extracted from their photos.
@@ -57,6 +57,7 @@ def generate_workout_plan(goals: str, height: str, weight: str, pose_analysis: d
     Input Data Context:
     Client Profile & Goals: 
     Goals: {goals}
+    Age: {age}
     Height: {height}
     Weight: {weight}
     
