@@ -7,7 +7,7 @@ import os
 from functools import lru_cache
 import json
 import logging
-from app.gcs import upload_file_to_gcs, download_file_from_gcs
+from app.gcs import upload_file_to_gcs, download_file_from_gcs, read_text_from_gcs
 from app.analysis import analyze_pose
 from app.llm import generate_workout_plan
 from google.cloud import tasks_v2
@@ -274,6 +274,34 @@ async def process_assessment(payload: WorkerPayload):
         # Cleanup
         if os.path.exists(tmp_dir):
             shutil.rmtree(tmp_dir)
+
+
+@app.get("/assessment/{plan_id}")
+async def get_assessment(plan_id: str):
+    """
+    Checks the status of the assessment and returns the generated plan if it's ready.
+    """
+    plan_blob_name = f"{plan_id}/plan.md"
+    metadata_blob_name = f"{plan_id}/metadata.json"
+    
+    try:
+        # Fast path: Check if the plan is already generated
+        plan_content = read_text_from_gcs(plan_blob_name)
+        if plan_content is not None:
+            return {"plan_id": plan_id, "status": "completed", "plan": plan_content}
+        
+        # Check if the submission actually exists
+        metadata_content = read_text_from_gcs(metadata_blob_name)
+        if metadata_content is None:
+            raise HTTPException(status_code=404, detail="Assessment not found.")
+            
+        return {"plan_id": plan_id, "status": "processing"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to fetch assessment status for {plan_id}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from google.cloud import storage
 import os
 from functools import lru_cache
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -35,3 +36,11 @@ def download_file_from_gcs(source_blob_name: str, local_destination: str):
     blob = bucket.blob(source_blob_name)
     blob.download_to_filename(local_destination)
     logger.info(f"Downloaded gs://{bucket.name}/{source_blob_name} to {local_destination}")
+
+def read_text_from_gcs(source_blob_name: str) -> Optional[str]:
+    """Reads a text file from Google Cloud Storage directly into memory."""
+    bucket = _get_bucket()
+    blob = bucket.blob(source_blob_name)
+    if blob.exists():
+        return blob.download_as_text()
+    return None
