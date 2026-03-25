@@ -131,7 +131,6 @@ async def submit_assessment(
         # Enqueue Cloud Task for Async Processing
         if PROJECT_ID and QUEUE_REGION and QUEUE_ID and SERVICE_URL:
             try:
-                client = tasks_v2.CloudTasksClient()
                 client = get_tasks_client()
                 parent = client.queue_path(PROJECT_ID, QUEUE_REGION, QUEUE_ID)
 
