@@ -23,12 +23,25 @@ jobs:
       - name: Build and Push container
         run: |
           gcloud builds submit --tag gcr.io/sunlit-ace-442319-m7/agentic-fitness-mvp:$GITHUB_SHA --gcs-log-dir=gs://sunlit-ace-442319-m7_cloudbuild/logs
+          cp Dockerfile.frontend Dockerfile
+          gcloud builds submit --tag gcr.io/sunlit-ace-442319-m7/agentic-fitness-ui:$GITHUB_SHA --gcs-log-dir=gs://sunlit-ace-442319-m7_cloudbuild/logs
+          git checkout Dockerfile
 
-      - name: Deploy to Cloud Run
+      - name: Deploy Backend to Cloud Run
         run: |
           gcloud run deploy agentic-fitness-mvp \
             --image=gcr.io/sunlit-ace-442319-m7/agentic-fitness-mvp:$GITHUB_SHA \
             --region=us-central1 \
             --platform=managed \
             --allow-unauthenticated \
+            --service-account=gha-deployer@sunlit-ace-442319-m7.iam.gserviceaccount.com
+
+      - name: Deploy Frontend to Cloud Run
+        run: |
+          gcloud run deploy agentic-fitness-ui \
+            --image=gcr.io/sunlit-ace-442319-m7/agentic-fitness-ui:$GITHUB_SHA \
+            --region=us-central1 \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars API_URL=https://agentic-fitness-mvp-432298206863.us-central1.run.app \
             --service-account=gha-deployer@sunlit-ace-442319-m7.iam.gserviceaccount.com
